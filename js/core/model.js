@@ -105,7 +105,7 @@ export class EditorModel extends EventTarget {
     try{
       const saved = JSON.parse(localStorage.getItem(STORE(this.design.id)) || "null");
       const fixed = this.design.state || {};
-      if (saved) for (const k of Object.keys(saved)) if (k in this.values && !(k in fixed)) this.values[k] = saved[k];
+      if (saved) for (const k of Object.keys(saved)) if (k in this.values && !(k in fixed) && typeof saved[k] === typeof this.values[k]) this.values[k] = saved[k];
     }catch(e){}
   }
 

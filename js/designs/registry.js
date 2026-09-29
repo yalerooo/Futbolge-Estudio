@@ -8,9 +8,10 @@
 import { nextMatchPlayer, nextMatchPhoto } from "./next-match.js";
 import matchDay from "./match-day.js";
 import matchDayFoto from "./match-day-foto.js";
+import matchDayCine from "./match-day-cine.js";
 import fullTime from "./full-time.js";
 
-export const designs = [nextMatchPlayer, nextMatchPhoto, matchDay, matchDayFoto, fullTime];
+export const designs = [nextMatchPlayer, nextMatchPhoto, matchDayCine, matchDay, matchDayFoto, fullTime];
 
 export const getDesign = id => designs.find(d => d.id === id);
 

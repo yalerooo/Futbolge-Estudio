@@ -30,20 +30,12 @@ const TONE = "grayscale(1) contrast(1.12) brightness(.82)";
    Todo se hace sobre una "placa limpia": la foto sin el jugador (el hueco se rellena
    con el fondo de alrededor), así el desenfoque y el movimiento no dejan siluetas fantasma.
    --------------------------------------------------------------------------- */
-const PRESETS = {
-  //          desenfoque  barrido  zoom  líneas  bokeh  halo  oscurecer  contorno
-  sprint:  { blur: 3,  motion: 85, zoom: 0,  lines: 40, bokeh: 0,  halo: 25, dark: 35, rim: true },
-  impacto: { blur: 2,  motion: 0,  zoom: 80, lines: 0,  bokeh: 0,  halo: 55, dark: 45, rim: true },
-  estadio: { blur: 22, motion: 0,  zoom: 0,  lines: 0,  bokeh: 75, halo: 35, dark: 40, rim: true }
-};
 function fxValues(v){
-  const p = PRESETS[v.fxPreset] || {};
-  const pick = (k, id) => Math.max(Number(v[id]) || 0, p[k] || 0);
-  return { blur: pick("blur", "bgBlur"), motion: pick("motion", "motion"), zoom: pick("zoom", "zoomBurst"),
-           lines: pick("lines", "speedLines"), bokeh: pick("bokeh", "bokeh"), halo: pick("halo", "halo"),
-           dark: pick("dark", "bgDark"), rim: !!(v.rim || p.rim), dir: (Number(v.motionDir) || 0) * Math.PI / 180 };
+  const n = id => Number(v[id]) || 0;
+  return { blur: n("bgBlur"), motion: n("motion"), zoom: n("zoomBurst"), halo: n("halo"), dark: n("bgDark"),
+           dir: n("motionDir") * Math.PI / 180 };
 }
-const fxActive = fx => !!(fx.blur || fx.motion || fx.zoom || fx.lines || fx.bokeh || fx.halo || fx.dark || fx.rim);
+const fxActive = fx => !!(fx.blur || fx.motion || fx.zoom || fx.halo || fx.dark);
 
 function tintRect(ctx, t, r){
   ctx.save();
@@ -64,12 +56,16 @@ function cutCenter(cut){
   centers.set(cut, r); return r;
 }
 
-/* lienzo del tamaño del panel (unidades de diseño con origen en el panel) */
+/* zona de trabajo: el panel de la foto + un margen, para que desplazamientos y desenfoques
+   no dejen bordes vacíos. Todo se dibuja a escala 1:1: el fondo nunca se amplía respecto al jugador. */
+const MARGIN = 110;
+const AREA = { x: PHOTO.x - MARGIN, y: PHOTO.y - MARGIN, w: PHOTO.w + MARGIN * 2, h: PHOTO.h + MARGIN * 2 };
 function panelCanvas(q){
-  const c = document.createElement("canvas"); c.width = Math.round(PHOTO.w * q); c.height = Math.round(PHOTO.h * q);
-  const g = c.getContext("2d"); g.setTransform(q, 0, 0, q, -PHOTO.x * q, -PHOTO.y * q); g.imageSmoothingQuality = "high";
+  const c = document.createElement("canvas"); c.width = Math.round(AREA.w * q); c.height = Math.round(AREA.h * q);
+  const g = c.getContext("2d"); g.setTransform(q, 0, 0, q, -AREA.x * q, -AREA.y * q); g.imageSmoothingQuality = "high";
   return { c, g };
 }
+const rawCanvas = (w, h) => { const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; };
 
 /* placa limpia: foto con tono y sin el jugador (el hueco se rellena con el fondo cercano desenfocado) */
 let plateCache = null;
@@ -79,132 +75,76 @@ function cleanPlate(ph, cut, q){
   const P = panelCanvas(q);
   drawToned(P.g, ph.img, TONE, ph.x, ph.y, ph.w, ph.h);
   if (FILTER_OK){
-    // hueco algo más grande que la silueta
     const M = panelCanvas(q);
-    M.g.filter = `blur(${10 * q}px)`; for (let i = 0; i < 3; i++) M.g.drawImage(cut, ph.x, ph.y, ph.w, ph.h);
+    M.g.filter = `blur(${3 * q}px)`; for (let i = 0; i < 4; i++) M.g.drawImage(cut, ph.x, ph.y, ph.w, ph.h);
     P.g.save(); P.g.setTransform(1, 0, 0, 1, 0, 0); P.g.globalCompositeOperation = "destination-out"; P.g.drawImage(M.c, 0, 0); P.g.restore();
-    // relleno: la placa agujereada muy desenfocada, varias pasadas para que cubra el hueco
-    const F = document.createElement("canvas"); F.width = P.c.width; F.height = P.c.height;
-    const fg = F.getContext("2d");
-    for (const r of [60, 40, 24]){ fg.filter = `blur(${r * q}px)`; fg.drawImage(P.c, 0, 0); fg.drawImage(P.c, 0, 0); }
+    const F = rawCanvas(P.c.width, P.c.height), fg = F.getContext("2d");
+    for (const r of [50, 30, 16]){ fg.filter = `blur(${r * q}px)`; fg.drawImage(P.c, 0, 0); fg.drawImage(P.c, 0, 0); }
     P.g.save(); P.g.setTransform(1, 0, 0, 1, 0, 0); P.g.globalCompositeOperation = "destination-over"; P.g.drawImage(F, 0, 0); P.g.restore();
   }
   plateCache = { key, cut, c: P.c };
   return P.c;
 }
 
-/* fondo con efectos: desenfoque, barrido (motion blur real), zoom radial y viñeta */
+/* fondo con efectos. Si solo hay efectos «encima» (contraluz, oscurecer) se usa la foto original tal cual */
 function drawFxBackground(ctx, ph, cut, fx){
+  if (!(fx.blur || fx.motion || fx.zoom)){ drawToned(ctx, ph.img, TONE, ph.x, ph.y, ph.w, ph.h); return; }
   const q = ctx.__q || 1, plate = cleanPlate(ph, cut, q);
   const c = cutCenter(cut), cx = ph.x + c.u * ph.w, cy = ph.y + c.v * ph.h;
-  const L = panelCanvas(q), g = L.g;
-  const put = (img, x, y, w, h, a) => { g.globalAlpha = a; g.drawImage(img, x, y, w, h); };
-  // 1) desenfoque de profundidad
   let base = plate;
   if (fx.blur){
-    const B = document.createElement("canvas"); B.width = plate.width; B.height = plate.height;
-    const bg = B.getContext("2d"); bg.filter = `blur(${fx.blur * q}px)`;
-    // se amplía un poco para que el desenfoque no oscurezca los bordes
-    bg.drawImage(plate, -plate.width * .03, -plate.height * .03, plate.width * 1.06, plate.height * 1.06);
+    const B = rawCanvas(plate.width, plate.height), bg = B.getContext("2d");
+    bg.filter = `blur(${fx.blur * q}px)`; bg.drawImage(plate, 0, 0);
     base = B;
   }
-  const bx = PHOTO.x, by = PHOTO.y, bw = PHOTO.w, bh = PHOTO.h;
-  put(base, bx - bw * .06, by - bh * .06, bw * 1.12, bh * 1.12, 1);     // margen para los desplazamientos
-  // 2) barrido: promedio de copias desplazadas a ambos lados (como una foto con barrido de cámara)
-  if (fx.motion){
-    const len = fx.motion * 1.5, n = 28, dx = Math.cos(fx.dir), dy = Math.sin(fx.dir);
-    for (let i = 1; i < n; i++){
-      const o = (i / (n - 1) - .5) * len;
-      put(base, bx - bw * .06 + dx * o, by - bh * .06 + dy * o, bw * 1.12, bh * 1.12, 1 / (i + 1));
-    }
+  const L = panelCanvas(q), g = L.g;
+  const put = (x, y, w, h, a) => { g.globalAlpha = a; g.drawImage(base, x, y, w, h); };
+  put(AREA.x, AREA.y, AREA.w, AREA.h, 1);
+  if (fx.motion){       // barrido de cámara: promedio de copias desplazadas a ambos lados
+    const len = Math.min(MARGIN * 2, fx.motion * 1.5), n = 28, dx = Math.cos(fx.dir), dy = Math.sin(fx.dir);
+    for (let i = 1; i < n; i++){ const o = (i / (n - 1) - .5) * len; put(AREA.x + dx * o, AREA.y + dy * o, AREA.w, AREA.h, 1 / (i + 1)); }
   }
-  // 3) zoom radial desde el jugador
-  if (fx.zoom){
+  if (fx.zoom){         // zoom radial centrado en el jugador
     const n = 30, k = fx.zoom / 100 * .5;
-    for (let i = 1; i < n; i++){
-      const s = 1.12 * (1 + k * i / (n - 1)), w = bw * s, h = bh * s;
-      put(base, cx - (cx - bx + bw * .06) * s / 1.12, cy - (cy - by + bh * .06) * s / 1.12, w, h, 1 / (i + 1));
-    }
+    for (let i = 1; i < n; i++){ const s = 1 + k * i / (n - 1); put(cx - (cx - AREA.x) * s, cy - (cy - AREA.y) * s, AREA.w * s, AREA.h * s, 1 / (i + 1)); }
   }
   g.globalAlpha = 1;
-  ctx.drawImage(L.c, PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+  ctx.drawImage(L.c, AREA.x, AREA.y, AREA.w, AREA.h);
 }
 
 /* viñeta: oscurece el fondo alrededor del jugador */
 function vignette(ctx, ph, cut, fx){
   const c = cutCenter(cut), cx = ph.x + c.u * ph.w, cy = ph.y + c.v * ph.h;
   const k = fx.dark / 100;
-  // separación: todo el fondo un poco más oscuro y los bordes mucho más
-  ctx.fillStyle = `rgba(0,0,0,${k * .38})`; ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
-  const g = ctx.createRadialGradient(cx, cy, 90, cx, cy, 620);
-  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${Math.min(.95, k * 1.25)})`);
+  ctx.fillStyle = `rgba(0,0,0,${k * .3})`; ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+  const g = ctx.createRadialGradient(cx, cy, 110, cx, cy, 640);
+  g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${Math.min(.92, k * 1.2)})`);
   ctx.fillStyle = g; ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
-  const b = ctx.createLinearGradient(0, PHOTO.y + PHOTO.h * .6, 0, PHOTO.y + PHOTO.h);
-  b.addColorStop(0, "rgba(0,0,0,0)"); b.addColorStop(1, `rgba(0,0,0,${k * .8})`);
+  const b = ctx.createLinearGradient(0, PHOTO.y + PHOTO.h * .62, 0, PHOTO.y + PHOTO.h);
+  b.addColorStop(0, "rgba(0,0,0,0)"); b.addColorStop(1, `rgba(0,0,0,${k * .75})`);
   ctx.fillStyle = b; ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
 }
 
-/* luces bokeh del pabellón (profundidad de campo) */
-function bokeh(ctx, ph, cut, fx){
-  const c = cutCenter(cut);
-  let s = 23; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const n = Math.round(8 + fx.bokeh * .16);
-  ctx.save(); ctx.globalCompositeOperation = "screen";
-  for (let i = 0; i < n; i++){
-    // luces del techo y las gradas: mitad superior, pocas grandes y varias pequeñas
-    const r = 10 + Math.pow(rnd(), 2.2) * 78, x = PHOTO.x + rnd() * PHOTO.w, y = PHOTO.y + Math.pow(rnd(), 1.4) * PHOTO.h * .55;
-    const a = (.22 + rnd() * .45) * fx.bokeh / 100 * (r > 45 ? .6 : 1), warm = rnd() > .3;
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    const col = warm ? "255,214,110" : "255,246,225";
-    g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(.72, `rgba(${col},${a * .75})`); g.addColorStop(.86, `rgba(${col},${a * .95})`); g.addColorStop(1, `rgba(${col},0)`);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-}
-
-/* halo dorado suave detrás del jugador */
+/* contraluz: foco suave detrás de la parte alta del jugador, más intenso en el centro */
 function halo(ctx, ph, cut, fx){
-  const c = cutCenter(cut), cx = ph.x + c.u * ph.w, cy = ph.y + (c.top + (c.bot - c.top) * .35) * ph.h;
-  const R = (c.bot - c.top) * ph.h * .75;
-  ctx.save(); ctx.globalCompositeOperation = "screen";
-  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-  g.addColorStop(0, `rgba(245,212,90,${.8 * fx.halo / 100})`); g.addColorStop(.45, `rgba(211,181,42,${.32 * fx.halo / 100})`); g.addColorStop(1, "rgba(211,181,42,0)");
-  ctx.fillStyle = g; ctx.fillRect(PHOTO.x, PHOTO.y, PHOTO.w, PHOTO.h);
+  const c = cutCenter(cut), cx = ph.x + c.u * ph.w, cy = ph.y + (c.top + (c.bot - c.top) * .28) * ph.h;
+  const R = (c.bot - c.top) * ph.h * .95, k = Math.min(1, fx.halo / 100 * 1.15);
+  ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.translate(cx, cy); ctx.scale(1, 1.4);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+  g.addColorStop(0, `rgba(255,232,150,${.95 * k})`); g.addColorStop(.25, `rgba(245,210,95,${.55 * k})`);
+  g.addColorStop(.6, `rgba(211,181,42,${.18 * k})`); g.addColorStop(1, "rgba(211,181,42,0)");
+  ctx.fillStyle = g; ctx.fillRect(-R, -R, R * 2, R * 2);
   ctx.restore();
 }
 
-/* líneas de velocidad finas y elegantes, a los lados del jugador */
-function speedLines(ctx, ph, cut, fx){
-  const c = cutCenter(cut), cx = ph.x + c.u * ph.w, cy = ph.y + c.v * ph.h, hh = (c.bot - c.top) * ph.h;
-  let s = 11; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const n = Math.round(8 + fx.lines * .3);
-  ctx.save(); ctx.translate(cx, cy); ctx.rotate(fx.dir); ctx.globalCompositeOperation = "screen"; ctx.lineCap = "round";
-  for (let i = 0; i < n; i++){
-    const side = rnd() > .5 ? 1 : -1, y = (rnd() - .5) * hh * 1.05, len = 90 + rnd() * 260;
-    const x0 = side * (60 + rnd() * 120), x1 = x0 + side * len, a = (.25 + rnd() * .5) * fx.lines / 100;
-    const g = ctx.createLinearGradient(x0, 0, x1, 0);
-    g.addColorStop(0, `rgba(255,236,160,${a})`); g.addColorStop(1, "rgba(255,236,160,0)");
-    ctx.strokeStyle = g; ctx.lineWidth = .8 + rnd() * 1.8;
-    ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-/* jugador nítido con el mismo tono dorado, sombra y (opcional) luz de contorno */
-function drawPlayer(ctx, ph, cut, v, over = false, rimOn = v.rim){
-  const q = ctx.__q || 1, tmp = document.createElement("canvas");
-  tmp.width = Math.round(W * q); tmp.height = Math.round(H * q);
+/* jugador nítido con el mismo tono dorado, sombra y (opcional) contraluz en los bordes */
+function drawPlayer(ctx, ph, cut, v, over = false){
+  const q = ctx.__q || 1, tmp = rawCanvas(W * q, H * q);
   const tg = tmp.getContext("2d"); tg.setTransform(q, 0, 0, q, 0, 0);
   drawToned(tg, cut, TONE, ph.x, ph.y, ph.w, ph.h);
   tg.globalCompositeOperation = "multiply"; tg.globalAlpha = .55 * (v.tint / 100); tg.fillStyle = "#c9a53a"; tg.fillRect(0, 0, W, H);
   tg.globalCompositeOperation = "destination-in"; tg.globalAlpha = 1; tg.drawImage(cut, ph.x, ph.y, ph.w, ph.h);
-  if (rimOn){
-    const rim = document.createElement("canvas"); rim.width = tmp.width; rim.height = tmp.height;
-    const rg = rim.getContext("2d"); rg.setTransform(q, 0, 0, q, 0, 0);
-    rg.drawImage(cut, ph.x, ph.y, ph.w, ph.h); rg.globalCompositeOperation = "source-in"; rg.fillStyle = "#f0d24a"; rg.fillRect(0, 0, W, H);
-    ctx.save(); ctx.shadowColor = "rgba(240,210,74,.9)"; ctx.shadowBlur = 10; ctx.globalAlpha = .9; ctx.drawImage(rim, 0, 0, W, H); ctx.restore();
-  }
-  ctx.save(); ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = over ? 26 : 18; ctx.shadowOffsetY = over ? 10 : 6;
+  ctx.save(); ctx.shadowColor = over ? "rgba(0,0,0,.55)" : "rgba(0,0,0,.35)"; ctx.shadowBlur = over ? 26 : 10; ctx.shadowOffsetY = over ? 10 : 4;
   ctx.drawImage(tmp, 0, 0, W, H);
   ctx.restore();
 }
@@ -238,7 +178,7 @@ export default {
       { type: "image", id: "cV", label: "Escudo visitante (blanco y negro)", src: "assets/img/escudo_jaimitos_bn_hd.png" }
     ]},
     { type: "section", title: "Foto", fields: [
-      { type: "photo", id: "photo", label: "Foto del partido", src: "assets/fotos/jugador_pabellon.webp", cutout: "layer", cutoutSet: { fxPreset: "impacto" },
+      { type: "photo", id: "photo", label: "Foto del partido", src: "assets/fotos/jugador_pabellon.webp", cutout: "layer",
         cutoutHint: "«Recortar jugador» separa a la persona del fondo con IA: podrás desenfocar el fondo, añadir movimiento y ponerlo delante del título.",
         area: () => PHOTO,
         defaultFrame: (img, a, cover) => {
@@ -252,23 +192,18 @@ export default {
     ]},
     { type: "section", title: "Efectos de fondo", fields: [
       { type: "hint", text: "Pulsa «Recortar jugador» en la foto: los efectos se aplican solo al fondo y el jugador queda nítido delante." },
-      { type: "segmented", id: "fxPreset", value: "none", options: [
-        { value: "none", label: "Nada" }, { value: "sprint", label: "Sprint" }, { value: "impacto", label: "Impacto" }, { value: "estadio", label: "Estadio" }] },
       { type: "range", id: "bgBlur", label: "Desenfocar fondo", value: 0, min: 0, max: 30 },
       { type: "range", id: "motion", label: "Barrido de movimiento", value: 0, min: 0, max: 100 },
-      { type: "range", id: "motionDir", label: "Ángulo del barrido (°)", value: 0, min: -45, max: 45, visibleIf: v => v.motion > 0 || v.fxPreset === "sprint" },
+      { type: "range", id: "motionDir", label: "Ángulo del barrido (°)", value: 0, min: -45, max: 45, visibleIf: v => v.motion > 0 },
       { type: "range", id: "zoomBurst", label: "Zoom radial", value: 0, min: 0, max: 100 },
-      { type: "range", id: "bokeh", label: "Luces del pabellón (bokeh)", value: 0, min: 0, max: 100 },
-      { type: "range", id: "halo", label: "Halo dorado detrás del jugador", value: 0, min: 0, max: 100 },
-      { type: "range", id: "speedLines", label: "Líneas de velocidad", value: 0, min: 0, max: 100 },
-      { type: "range", id: "bgDark", label: "Oscurecer bordes", value: 0, min: 0, max: 80 },
-      { type: "checkbox", id: "rim", label: "Luz dorada en el contorno del jugador", value: false }
+      { type: "range", id: "halo", label: "Contraluz detrás del jugador", value: 0, min: 0, max: 100 },
+      { type: "range", id: "bgDark", label: "Oscurecer bordes", value: 0, min: 0, max: 80 }
     ]},
     { type: "section", title: "Competición y estilo", collapsed: true, fields: [
       { type: "checkbox", id: "showComp", label: "Mostrar logo de la competición", value: true },
       { type: "image", id: "comp", label: "Logo de la competición", src: "assets/img/logo_fvfs.png", visibleIf: v => v.showComp },
       { type: "checkbox", id: "bgWords", label: "Letras gigantes de fondo", value: true },
-      { type: "checkbox", id: "glow", label: "Barra lateral con degradado", value: true }
+      { type: "checkbox", id: "sideBar", label: "Barra lateral con degradado", value: true }
     ]}
   ],
 
@@ -292,7 +227,7 @@ export default {
 
     // barra lateral: el rectángulo con degradado del diseño original (x 804 → borde derecho, alto completo),
     // encima de las letras y debajo de todo lo demás
-    if (v.glow){
+    if (v.sideBar){
       if (I.barra) ctx.drawImage(I.barra, SIDEBAR.x, 0, W - SIDEBAR.x, H);
       else {
         const gr = ctx.createLinearGradient(SIDEBAR.x, 0, W, H);
@@ -312,10 +247,8 @@ export default {
       tintRect(ctx, v.tint / 100, PHOTO);
       if (fxOn){
         if (fx.dark) vignette(ctx, ph, cut, fx);
-        if (fx.bokeh) bokeh(ctx, ph, cut, fx);
         if (fx.halo) halo(ctx, ph, cut, fx);
-        if (fx.lines) speedLines(ctx, ph, cut, fx);
-        if (!v.popOut) drawPlayer(ctx, ph, cut, v, false, fx.rim);
+        if (!v.popOut) drawPlayer(ctx, ph, cut, v, false);
       }
     }
     const g2 = ctx.createLinearGradient(0, PHOTO.y, 0, PHOTO.y + PHOTO.h);
@@ -334,7 +267,7 @@ export default {
     // efecto 3D: el jugador recortado se dibuja encima del título y puede salir por arriba del marco de la foto
     if (v.popOut && cut && ph){
       ctx.save(); ctx.beginPath(); ctx.rect(PHOTO.x, 0, PHOTO.w, PHOTO.y + PHOTO.h); ctx.clip();
-      drawPlayer(ctx, ph, cut, v, true, fxValues(v).rim);
+      drawPlayer(ctx, ph, cut, v, true);
       ctx.restore();
     }
 
