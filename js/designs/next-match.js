@@ -95,7 +95,8 @@ function drawCutout(ctx, v, I){
   ctx.font = f(400, 40, ANTON); const vsW = ctx.measureText("VS").width, gap = 34;
   const x0 = (W - (D + gap + vsW + gap + D)) / 2;
   ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 14;
-  crestCircle(I.cL, x0, ccy, D); crestCircle(I.cV, x0 + D + gap + vsW + gap, ccy, D);
+  if (v.equipos === "nombres") drawNames(ctx, v, ccy);
+  else { crestCircle(I.cL, x0, ccy, D); crestCircle(I.cV, x0 + D + gap + vsW + gap, ccy, D); }
   ctx.restore();
   text("VS", W / 2, ccy + 15, f(400, 40, ANTON), GOLD, "center", 1);
 
@@ -114,6 +115,30 @@ function drawCutout(ctx, v, I){
 
   if (I.firma){ const h = 46, w = I.firma.width * h / I.firma.height; ctx.globalAlpha = .9; ctx.drawImage(I.firma, (W - w) / 2, 32, w, h); ctx.globalAlpha = 1; }
   ctx.save(); ctx.globalCompositeOperation = "overlay"; ctx.globalAlpha = .07; ctx.drawImage(grain(), 0, 0, W, H); ctx.restore();
+}
+
+/* ---------- modo «solo nombres»: sin escudos ---------- */
+const isOurs = name => name.includes("FUTBOLGE");
+function drawNames(ctx, v, cy){
+  // un nombre a cada lado del VS; el nuestro en dorado, el rival en blanco
+  const half = 92, side = 330;
+  [[String(v.nL || "").trim().toUpperCase(), W / 2 - half, "right"], [String(v.nV || "").trim().toUpperCase(), W / 2 + half, "left"]].forEach(([name, x, align]) => {
+    if (!name) return;
+    const px = fit(name, side, 400, 64, 24, 2, ANTON);
+    ctx.font = f(400, px, ANTON); const cap = ctx.measureText("H").actualBoundingBoxAscent;
+    text(name, x, cy + cap / 2, f(400, px, ANTON), isOurs(name) ? GOLD : WHITE, align, 2);
+  });
+}
+
+function drawNamesStack(ctx, v, X, cy){
+  // dos nombres apilados a la izquierda, con la misma lógica de color
+  [[String(v.nL || "").trim().toUpperCase(), cy - 14], [String(v.nV || "").trim().toUpperCase(), cy + 80]].forEach(([name, y]) => {
+    if (!name) return;
+    const px = fit(name, 460, 400, 64, 26, 2, ANTON);
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 20;
+    text(name, X - 4, y, f(400, px, ANTON), isOurs(name) ? GOLD : WHITE, "left", 2);
+    ctx.restore();
+  });
 }
 
 /* ---------- estilo 2: foto de fondo ---------- */
@@ -138,11 +163,14 @@ function drawPhoto(ctx, v, I, m){
   }
 
   const X = 72, D = 104, cy = 318;
-  ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 20;
-  const wL = crestCircle(I.cL, X, cy, D);
-  ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.fillRect(X + wL + 26, cy - 36, 1.5, 72);
-  crestCircle(I.cV, X + wL + 53, cy, D);
-  ctx.restore();
+  if (v.equipos === "nombres") drawNamesStack(ctx, v, X, cy);
+  else {
+    ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 20;
+    const wL = crestCircle(I.cL, X, cy, D);
+    ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.fillRect(X + wL + 26, cy - 36, 1.5, 72);
+    crestCircle(I.cV, X + wL + 53, cy, D);
+    ctx.restore();
+  }
 
   const t1 = String(v.t1).toUpperCase(), t2 = String(v.t2).toUpperCase();
   const TP = Math.min(fit(t1, 460, 400, 200, 80, 0, ANTON), fit(t2, 460, 400, 200, 80, 0, ANTON));
@@ -190,12 +218,14 @@ const base = {
       { type: "text", id: "lugar", label: "Lugar", value: "Centro Cívico Hegoalde · Vitoria-Gasteiz" }
     ]},
     { type: "section", title: "Equipos", fields: [
+      { type: "segmented", id: "equipos", value: "escudos", options: [{ value: "escudos", label: "Con escudos" }, { value: "nombres", label: "Solo nombres" }] },
       { type: "row", fields: [
         { type: "text", id: "nL", label: "Local", value: "Futbolge" },
         { type: "text", id: "nV", label: "Visitante", value: "Jaimitos FC" }
       ]},
-      { type: "image", id: "cL", label: "Escudo local (blanco y negro)", src: "assets/img/escudo_futbolge_bn_hd.png" },
-      { type: "image", id: "cV", label: "Escudo visitante (blanco y negro)", src: "assets/img/escudo_jaimitos_bn_hd.png" }
+      { type: "image", id: "cL", label: "Escudo local (blanco y negro)", src: "assets/img/escudo_futbolge_bn_hd.png", visibleIf: v => v.equipos === "escudos" },
+      { type: "image", id: "cV", label: "Escudo visitante (blanco y negro)", src: "assets/img/escudo_jaimitos_bn_hd.png", visibleIf: v => v.equipos === "escudos" },
+      { type: "hint", text: "«Solo nombres» es para rivales sin escudo. El nombre que contenga FUTBOLGE sale en dorado.", visibleIf: v => v.equipos === "nombres" }
     ]},
     { type: "section", title: "Jugador", visibleIf: v => v.mode === "recorte", fields: [
       { type: "image", id: "player", label: "Jugador (sube cualquier foto: se recorta solo)", src: "assets/fotos/jugador_recorte.png", cutout: true, cutoutAuto: true,
