@@ -12,7 +12,7 @@ import { sizeCanvas, makeCanvas, EXPORT_Q } from "../core/canvas.js";
 import { h } from "../views/dom.js";
 
 export async function ensureFonts(){
-  const wanted = ["100px Anton", "400 20px Montserrat", "500 20px Montserrat", "600 20px Montserrat", "700 20px Montserrat", "800 20px Montserrat", "900 20px Montserrat"];
+  const wanted = ["100px Anton", "400 20px Montserrat", "500 20px Montserrat", "600 20px Montserrat", "700 20px Montserrat", "800 20px Montserrat", "900 20px Montserrat", "400 20px Inter", "500 20px Inter", "700 20px Inter"];
   await Promise.race([Promise.all(wanted.map(w => document.fonts.load(w))), new Promise(r => setTimeout(r, 4000))]);
 }
 
