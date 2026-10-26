@@ -11,10 +11,11 @@ import matchDayFoto from "./match-day-foto.js";
 import matchDayCine from "./match-day-cine.js";
 import matchDayCancion from "./match-day-cancion.js";
 import fullTime from "./full-time.js";
+import clasificacion from "./clasificacion.js";
 
-export const designs = [nextMatchPlayer, nextMatchPhoto, matchDayCine, matchDayCancion, matchDay, matchDayFoto, fullTime];
+export const designs = [nextMatchPlayer, nextMatchPhoto, matchDayCine, matchDayCancion, matchDay, matchDayFoto, fullTime, clasificacion];
 
 export const getDesign = id => designs.find(d => d.id === id);
 
 /** Orden de las categorías en la portada (el momento del partido). */
-export const CATEGORIES = ["Previa", "Día de partido", "Resultado"];
+export const CATEGORIES = ["Previa", "Día de partido", "Resultado", "Clasificación"];
