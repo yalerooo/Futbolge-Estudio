@@ -103,7 +103,12 @@ function drawCutout(ctx, v, I){
   const { day, date } = splitDate(v.fecha), ho = hourH(v.hora);
   const lu = String(v.lugar).split("·")[0].trim().toUpperCase();
   let luLabel = "PABELLÓN", luVal = lu;
-  if (lu && fit(lu, 260, 400, 40, 18, 1, ANTON) < 38){ const w = lu.split(/\s+/); luLabel = w.slice(0, -1).join(" "); luVal = w[w.length - 1]; }
+  if (lu && fit(lu, 260, 400, 40, 18, 1, ANTON) < 38){
+    // la última palabra va en grande, arrastrando las partículas que la preceden («SAN ANDRÉS», «DE LA PEÑA»)
+    const w = lu.split(/\s+/); let k = w.length - 1;
+    while (k > 1 && PARTICLES.has(w[k - 1])) k--;
+    if (k > 0){ luLabel = w.slice(0, k).join(" "); luVal = w.slice(k).join(" "); }
+  }
   const cols = [[day || "FECHA", date, WHITE], ["HORA", ho, GOLD], [luLabel, luVal, WHITE]];
   const top = 1250, colW = 300, cx0 = W / 2 - colW;
   ctx.fillStyle = "rgba(255,255,255,.22)"; ctx.fillRect(W / 2 - colW / 2, top, 1, 70); ctx.fillRect(W / 2 + colW / 2, top, 1, 70);
@@ -116,6 +121,8 @@ function drawCutout(ctx, v, I){
   if (I.firma){ const h = 46, w = I.firma.width * h / I.firma.height; ctx.globalAlpha = .9; ctx.drawImage(I.firma, (W - w) / 2, 32, w, h); ctx.globalAlpha = 1; }
   ctx.save(); ctx.globalCompositeOperation = "overlay"; ctx.globalAlpha = .07; ctx.drawImage(grain(), 0, 0, W, H); ctx.restore();
 }
+
+const PARTICLES = new Set(["SAN", "SANTA", "SANTO", "STA.", "STO.", "DE", "DEL", "LA", "EL", "LOS", "LAS", "Y", "I"]);
 
 /* ---------- modo «solo nombres»: sin escudos ---------- */
 const isOurs = name => name.includes("FUTBOLGE");
