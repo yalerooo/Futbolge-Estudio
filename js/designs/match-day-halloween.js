@@ -68,7 +68,7 @@ function trident(ctx, firma, cx, top, headW, bottom){
 }
 
 /* murciélago plano de alas en punta */
-function bat(ctx, x, y, s, rot, color){
+export function bat(ctx, x, y, s, rot, color){
   ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s); ctx.fillStyle = color;
   ctx.beginPath();                                              // una sola forma: sin costura en el eje
   [-1, 1].forEach(k => {
@@ -103,7 +103,7 @@ function inkBox(t, px){
   inkCache.set(key, box); return box;
 }
 /* tamaño con el que la tinta de la palabra cabe exacta en maxW */
-function inkFit(t, maxW, maxPx){
+export function inkFit(t, maxW, maxPx){
   let box = inkBox(t, maxPx), px = maxPx;
   if (box.right - box.left > maxW){ px = Math.max(120, Math.floor(maxPx * maxW / (box.right - box.left)) + 2); box = inkBox(t, px); }
   while (px > 120 && box.right - box.left > maxW){ px--; box = inkBox(t, px); }
