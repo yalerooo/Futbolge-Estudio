@@ -237,7 +237,7 @@ export default {
     /* ---------- telaraña y murciélagos: segundo plano ---------- */
     if (v.showWeb){
       ctx.save(); ctx.strokeStyle = "rgba(239,231,214,.17)"; ctx.lineWidth = 1.3;
-      web(ctx, W, 0, 450, Math.PI * .52, Math.PI * .98);
+      web(ctx, W, 0, 450, Math.PI / 2, Math.PI);                 // ángulo recto: los hilos extremos van por el lateral y el borde superior
       ctx.restore();
     }
     if (v.showBats){
