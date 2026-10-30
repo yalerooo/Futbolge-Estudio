@@ -155,8 +155,20 @@ export default {
     ]},
     { type: "section", title: "La sombra", fields: [
       { type: "checkbox", id: "devil", label: "Sombra con cuernos y tridente", value: true },
-      { type: "range", id: "dvX", label: "Posición de la sombra", value: 0, min: -120, max: 120, visibleIf: v => v.devil },
+      { type: "range", id: "dvX", label: "Posición de la sombra (con cuernos y tridente)", value: 0, min: -120, max: 120, visibleIf: v => v.devil },
       { type: "checkbox", id: "showBats", label: "Murciélagos", value: true }
+    ]},
+    { type: "section", title: "Cuernos", visibleIf: v => v.devil, fields: [
+      { type: "hint", text: "Si cambias de jugador, ajusta aquí los cuernos para que encajen en su cabeza." },
+      { type: "range", id: "hornX", label: "Posición horizontal", value: 0, min: -150, max: 150 },
+      { type: "range", id: "hornY", label: "Posición vertical", value: 0, min: -150, max: 150 },
+      { type: "range", id: "hornGap", label: "Separación", value: 0, min: -60, max: 60 },
+      { type: "range", id: "hornSize", label: "Tamaño", value: 100, min: 40, max: 200 }
+    ]},
+    { type: "section", title: "Tridente", visibleIf: v => v.devil, fields: [
+      { type: "range", id: "trX", label: "Posición horizontal", value: 0, min: -150, max: 300 },
+      { type: "range", id: "trY", label: "Posición vertical", value: 0, min: -200, max: 300 },
+      { type: "range", id: "trSize", label: "Tamaño", value: 100, min: 50, max: 180 }
     ]}
   ],
 
@@ -196,11 +208,12 @@ export default {
       const dx = 312 + Number(v.dvX) - sh.u * dw, dy = 494 - sh.top * dh;
       ctx.save(); ctx.fillStyle = INK;
       ctx.drawImage(silhouetteOf(pl, INK), dx, dy, dw, dh);
-      const hornS = (sh.headR - sh.headL) * dw * .44, hy = dy + sh.headY * dh;
-      horn(ctx, dx + sh.headL * dw + hornS * .3, hy, -1, hornS);
-      horn(ctx, dx + sh.headR * dw - hornS * .3, hy, 1, hornS);
+      const hornS = (sh.headR - sh.headL) * dw * .44 * v.hornSize / 100, hy = dy + sh.headY * dh + Number(v.hornY);
+      const hornX = Number(v.hornX), gap = Number(v.hornGap);
+      horn(ctx, dx + sh.headL * dw + hornS * .3 + hornX - gap, hy, -1, hornS);
+      horn(ctx, dx + sh.headR * dw - hornS * .3 + hornX + gap, hy, 1, hornS);
       ctx.restore();
-      if (I.firma) trident(ctx, I.firma, 216 + Number(v.dvX), 512, 104, HORIZON);
+      if (I.firma) trident(ctx, I.firma, 216 + Number(v.dvX) + Number(v.trX), 512 + Number(v.trY), 104 * v.trSize / 100, HORIZON);
     }
 
     /* ---------- jugador en blanco y negro, como en el póster de siempre ---------- */
