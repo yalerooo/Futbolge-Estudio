@@ -4,6 +4,7 @@
  */
 import { h, icon } from "./dom.js";
 import { IMAGE_ACCEPT } from "../core/files.js";
+import { crestsFor } from "../core/crests.js";
 
 export class EditorView {
   constructor(design, model, handlers, designs = []){
@@ -120,10 +121,17 @@ export class EditorView {
     const prev = h("span", { class: "img-prev" }, icon("image", 18));
     const file = h("input", { type: "file", accept: IMAGE_ACCEPT, onchange: e => { const f = e.target.files[0]; e.target.value = ""; if (f) this.on.file(fd.id, f); } });
     const clear = h("button", { type: "button", class: "btn btn-ghost small", title: "Quitar", onclick: () => this.on.clearImage(fd.id) }, icon("x", 16));
+    // escudos del proyecto para elegir con un toque (js/core/crests.js)
+    const crests = crestsFor(fd);
+    const abs = src => new URL(src, location.href).href;
+    const picks = crests.map(c => h("button", { type: "button", class: "crest-opt", title: c.name, "aria-label": `Usar escudo ${c.name}`,
+      onclick: () => this.on.pickImage(fd.id, c.src) }, h("img", { src: c.src, alt: "", loading: "lazy" })));
+    const picker = crests.length ? h("div", { class: "crest-pick", role: "group", "aria-label": `Escudos para «${fd.label}»` }, picks) : null;
     const setPrev = () => {
       const img = this.model.images[fd.id];
       prev.replaceChildren(img ? h("img", { src: img.src, alt: "" }) : icon("image", 18));
       clear.hidden = !img || !!fd.src;         // las imágenes con valor por defecto no se quitan, se cambian
+      picks.forEach((b, i) => { const on = !!img && img.src === abs(crests[i].src); b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
     };
     this.controls["img:" + fd.id] = { set: setPrev }; setPrev();
     const cutBtn = fd.cutout ? h("button", { type: "button", class: "btn btn-gold small cut-btn", onclick: () => this.on.cutout(fd.id) },
@@ -132,7 +140,8 @@ export class EditorView {
       "Recorte automático con IA, como en Photoshop. La primera vez descarga el modelo (unos segundos).") : null;
     return h("div", { class: "field" },
       h("span", { class: "label" }, fd.label),
-      h("div", { class: "img-row" }, prev, h("label", { class: "btn btn-ghost small upload" }, file, "Cambiar…"), clear, cutBtn),
+      h("div", { class: "img-row" }, prev, h("label", { class: "btn btn-ghost small upload" }, file, crests.length ? "Subir…" : "Cambiar…"), clear, cutBtn),
+      picker,
       cutHint,
       extra);
   }

@@ -38,6 +38,7 @@ estudio/
 3. Define los **campos** del formulario en `fields`. Tipos disponibles:
    `text`, `number`, `select`, `segmented`, `checkbox`, `range`, `image`, `photo` (foto que se arrastra y se amplía), `button`, `hint`, y los contenedores `section` y `row`.
    Los campos `image`/`photo` admiten recorte automático con IA: `cutout: true` (botón «Quitar fondo»; con `cutoutAuto: true` se recorta solo al subir) o `cutout: "layer"` en una foto (guarda la silueta alineada en `m.images[id + "_cut"]` para efectos como el jugador delante del título).
+   Los campos `image` cuya etiqueta empieza por «Escudo» muestran debajo los escudos del proyecto para elegirlos con un toque (forzar o quitar con `crests: true/false`). Para añadir un escudo, copia el PNG en `assets/img/` y añade una línea en `js/core/crests.js`.
    Cualquier campo o sección puede llevar `visibleIf: v => …` para mostrarse solo en ciertos casos.
 4. Escribe `render(ctx, m)`: dibuja el cartel en unidades de diseño (p. ej. 1080 × 1350). Tienes los valores en `m.values`, las imágenes en `m.images` y las fotos encuadradas con `m.photo(id)`.
 5. Regístralo en `js/designs/registry.js` (una línea en la lista).
