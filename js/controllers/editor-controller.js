@@ -6,7 +6,7 @@
 import { EditorModel, eachField } from "../core/model.js";
 import { EditorView } from "../views/editor-view.js";
 import { getDesign, designs } from "../designs/registry.js";
-import { fileToImage } from "../core/files.js";
+import { fileToImage, loadImage } from "../core/files.js";
 import { removeBackground, preloadCutout } from "../core/cutout.js";
 import { sizeCanvas, makeCanvas, EXPORT_Q } from "../core/canvas.js";
 import { h } from "../views/dom.js";
@@ -39,6 +39,7 @@ export class EditorController {
     this.view = new EditorView(this.design, model, {
       input: (id, v) => model.set(id, v),
       file: (id, f) => this.loadFile(id, f),
+      pickImage: (id, src) => this.pickImage(id, src),
       clearImage: id => model.setImage(id, null),
       cutout: id => this.cutout(id),
       zoom: (id, z) => model.zoom(id, z),
@@ -141,6 +142,14 @@ export class EditorController {
         ? "Para abrir fotos HEIC hace falta conexión a internet."
         : "No se ha podido abrir esa imagen. Prueba con JPG, PNG o HEIC.", 6000);
     }
+  }
+
+  /** Usa una imagen del proyecto (p. ej. un escudo de js/core/crests.js). */
+  async pickImage(id, src){
+    const img = await loadImage(src);
+    if (this.dead) return;
+    if (!img){ this.view.toast("No se ha podido cargar ese escudo."); return; }
+    this.model.setImage(id, img);
   }
 
   /* ---------------- recorte automático (quitar fondo) ---------------- */

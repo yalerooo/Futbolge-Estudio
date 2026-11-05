@@ -250,6 +250,14 @@ input[type=range]::-moz-range-thumb{ width:13px; height:13px; background:var(--g
            color:var(--muted); overflow:hidden; background:repeating-conic-gradient(#171512 0 25%, #1e1b16 0 50%) 0 0/10px 10px; }
 .img-prev img{ width:100%; height:100%; object-fit:contain; }
 .upload{ position:relative; cursor:pointer; }
+/* selector de escudos del proyecto */
+.crest-pick{ display:flex; gap:8px; margin-top:10px; padding-bottom:4px; overflow-x:auto; scrollbar-width:thin; -webkit-overflow-scrolling:touch; }
+.crest-opt{ flex:none; width:46px; height:46px; padding:5px; border-radius:var(--r); border:1px solid var(--line); cursor:pointer;
+            background:repeating-conic-gradient(#171512 0 25%, #1e1b16 0 50%) 0 0/10px 10px; transition:border-color .15s, transform .15s; }
+.crest-opt img{ width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
+.crest-opt:hover{ border-color:var(--line-2); transform:translateY(-1px); }
+.crest-opt.on{ border-color:var(--gold); box-shadow:0 0 0 2px var(--gold-dim); }
+.crest-opt:focus-visible{ outline:none; box-shadow:0 0 0 3px var(--gold-dim); }
 .upload input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
 .panel-foot{ display:flex; align-items:center; gap:8px; margin:22px 2px 0; font-size:10px; font-weight:800; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); }
 .panel-foot::before{ content:""; width:7px; height:7px; background:var(--gold); transform:rotate(45deg); }
