@@ -108,6 +108,63 @@ function crest(ctx, img, cx, cy, area, maxW, maxH){
   ctx.drawImage(img, cx - (ci.x + ci.w / 2) * s, cy - (ci.y + ci.h / 2) * s, img.width * s, img.height * s);
 }
 
+/* ---------- cristal (glassmorphism) ---------- */
+
+/** Copia desenfocada (y algo más luminosa) de lo dibujado hasta ahora, a resolución real. */
+function frosted(ctx, blur){
+  const cv = ctx.canvas, q = ctx.getTransform().a || 1;
+  const c = document.createElement("canvas"); c.width = cv.width; c.height = cv.height;
+  const g = c.getContext("2d");
+  g.filter = `blur(${Math.round(blur * q)}px) brightness(1.3) saturate(1.2)`; g.drawImage(cv, 0, 0);
+  return c;
+}
+
+/**
+ * Cristal esmerilado con la forma que dibuje shape(g, modo) (en unidades de diseño, sobre un
+ * contexto ya transformado): fondo desenfocado, tinte, brillo en diagonal y borde luminoso.
+ */
+function glassShape(ctx, shape, { tint = "255,255,255", alpha = .14, blur = 20, edge = .75, shadow = true } = {}){
+  const cv = ctx.canvas, T = ctx.getTransform();
+  const mk = () => { const c = document.createElement("canvas"); c.width = cv.width; c.height = cv.height; const g = c.getContext("2d"); g.setTransform(T); return [c, g]; };
+  // máscara de la forma
+  const [mask, mg] = mk(); mg.fillStyle = "#fff"; shape(mg, "fill");
+  // sombra suave bajo el cristal
+  if (shadow){
+    const [sh, sg] = mk(); sg.shadowColor = "rgba(0,0,0,.55)"; sg.shadowBlur = 40 * T.a; sg.shadowOffsetY = 14 * T.a;
+    sg.fillStyle = "rgba(0,0,0,.35)"; shape(sg, "fill");
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(sh, 0, 0); ctx.restore();
+  }
+  // capa: fondo esmerilado + tinte + brillo, recortada por la máscara
+  const [layer, lg] = mk();
+  lg.save(); lg.setTransform(1, 0, 0, 1, 0, 0); lg.drawImage(frosted(ctx, blur), 0, 0); lg.restore();
+  lg.fillStyle = `rgba(${tint},${alpha})`; lg.fillRect(0, 0, W, H);
+  const hi = lg.createLinearGradient(0, 0, W * .35, H);
+  hi.addColorStop(0, "rgba(255,255,255,.1)"); hi.addColorStop(.5, "rgba(255,255,255,.02)"); hi.addColorStop(1, "rgba(255,255,255,0)");
+  lg.fillStyle = hi; lg.fillRect(0, 0, W, H);
+  lg.save(); lg.setTransform(1, 0, 0, 1, 0, 0); lg.globalCompositeOperation = "destination-in"; lg.drawImage(mask, 0, 0); lg.restore();
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(layer, 0, 0); ctx.restore();
+  // borde luminoso (más brillante arriba a la izquierda, como si le diera la luz)
+  if (edge){
+    ctx.save();
+    const eg = ctx.createLinearGradient(0, 0, W, H);
+    eg.addColorStop(0, `rgba(255,255,255,${edge})`); eg.addColorStop(1, `rgba(255,255,255,${edge * .6})`);
+    ctx.strokeStyle = eg; ctx.lineWidth = 1.6; ctx.lineJoin = "round";
+    shape(ctx, "stroke");
+    ctx.restore();
+  }
+}
+
+/** Texto de cristal inclinado. */
+function glassText(ctx, t, x, y, font, align, opts){
+  glassShape(ctx, (g, mode) => {
+    g.save(); g.translate(x, y); g.transform(1, 0, SKEW, 1, 0, 0);
+    g.font = font; g.textAlign = align; g.textBaseline = "alphabetic";
+    if (mode === "fill") g.fillText(t, 0, 0); else g.strokeText(t, 0, 0);
+    g.restore();
+  }, opts);
+}
+
+
 /** Texto inclinado (cursiva falsa) apoyado en su línea base. */
 function slanted(ctx, t, x, y, font, color, align = "left", spacing = 0){
   ctx.save(); ctx.translate(x, y); ctx.transform(1, 0, SKEW, 1, 0, 0);
@@ -138,7 +195,7 @@ export default {
   name: "Full Time",
   variant: "Goleadores",
   category: "Resultado",
-  description: "Marcador gigante detrás del jugador, banda dorada con los escudos y los goleadores.",
+  description: "Marcador gigante de cristal detrás del jugador, banda dorada con los escudos y los goleadores.",
   thumb: "assets/thumbs/full-time-goleadores.jpg",
   size: { w: W, h: H },
   filename: v => `full_time_${slug(v.nL)}_${v.gL}-${v.gV}_${slug(v.nV)}.png`,
@@ -163,6 +220,11 @@ export default {
       { type: "image", id: "cV", label: "Escudo (blanco y negro)", src: "assets/img/escudo_atletico_cacao_bn_hd.png" }
     ]},
     { type: "hint", text: "Goleadores separados por comas. Para varios goles del mismo: «Iago x4»." },
+    { type: "section", title: "Competición", fields: [
+      { type: "text", id: "jornada", label: "Jornada", value: "Jornada 2" },
+      { type: "checkbox", id: "showComp", label: "Mostrar logo de la competición", value: true },
+      { type: "image", id: "comp", label: "Logo de la competición", src: "assets/img/logo_fvfs.png", visibleIf: v => v.showComp }
+    ]},
     { type: "section", title: "Foto", fields: [
       { type: "photo", id: "photo", label: "Foto del jugador", src: "assets/fotos/jugador_resultado.jpg", cutout: "layer",
         cutoutHint: "«Recortar jugador» lo separa del fondo para ponerlo delante del marcador.",
@@ -178,41 +240,43 @@ export default {
     use(ctx);
     const v = m.values, I = m.images, ph = m.photo("photo"), cut = v.popOut ? I.photo_cut : null;
 
-    // ── fondo: negro con la foto apenas insinuada (desenfocada) y un foco dorado detrás del jugador
+    // ── fondo: campo de luz dorada difusa (lo que el cristal refracta) sobre negro
     ctx.fillStyle = BLACK; ctx.fillRect(0, 0, W, H);
     if (ph){
-      ctx.save(); ctx.globalAlpha = Math.min(1, (v.bgShow ?? 30) / 100 * (cut ? 1 : 2.4));
+      ctx.save(); ctx.globalAlpha = Math.min(1, (v.bgShow ?? 14) / 100 * (cut ? 1 : 2.4));
       ctx.filter = cut ? "grayscale(1) blur(12px)" : "none"; ctx.drawImage(grade(ph.img), ph.x, ph.y, ph.w, ph.h);
       ctx.restore();
     }
-    let g = ctx.createRadialGradient(W / 2 + 10, 600, 40, W / 2 + 10, 600, 640);
-    g.addColorStop(0, "rgba(211,181,42,.26)"); g.addColorStop(.5, "rgba(211,181,42,.06)"); g.addColorStop(1, "rgba(211,181,42,0)");
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, "rgba(10,10,10,.92)"); g.addColorStop(.2, "rgba(10,10,10,.1)"); g.addColorStop(.62, "rgba(10,10,10,.1)"); g.addColorStop(.74, BLACK);
+    for (const [gx, gy, gr, col, ga] of [
+      [W / 2, 640, 560, "211,181,42", .5]
+    ]){
+      const gg = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      gg.addColorStop(0, `rgba(${col},${ga})`); gg.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = gg; ctx.fillRect(0, 0, W, H);
+    }
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "rgba(10,10,10,.9)"); g.addColorStop(.22, "rgba(10,10,10,.1)"); g.addColorStop(.66, "rgba(10,10,10,.2)"); g.addColorStop(.78, BLACK); g.addColorStop(1, BLACK);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
-    // ── marcador gigante e inclinado
+    // ── marcador gigante de cristal
     const gL = String(v.gL === "" ? 0 : v.gL), gV = String(v.gV === "" ? 0 : v.gV);
-    const sPx = fit(gL + gV, 700, 400, 620, 300, 0, ANTON), base = 900, gap = 118;
-    slanted(ctx, gL, W / 2 - gap, base, f(400, sPx, ANTON), WHITE, "right");
-    slanted(ctx, gV, W / 2 + gap, base, f(400, sPx, ANTON), GOLD, "left");
-    ctx.save(); ctx.translate(W / 2, base - sPx * .36); ctx.transform(1, 0, SKEW, 1, 0, 0); ctx.fillStyle = GOLD; ctx.fillRect(-50, -11, 100, 22); ctx.restore();
+    const sPx = fit(gL + gV, 700, 400, 620, 300, 0, ANTON), base = 900, gap = 118, sf0 = f(400, sPx, ANTON);
+    glassText(ctx, gL, W / 2 - gap, base, sf0, "right", { tint: "255,255,255", alpha: .16, blur: 24, edge: .7, shadow: false });
+    glassText(ctx, gV, W / 2 + gap, base, sf0, "left", { tint: "211,181,42", alpha: .4, blur: 24, edge: .7, shadow: false });
+    const dy = base - sPx * .36;
+    ctx.save(); ctx.translate(W / 2, dy); ctx.transform(1, 0, SKEW, 1, 0, 0); ctx.fillStyle = GOLD; ctx.fillRect(-50, -11, 100, 22); ctx.restore();
 
     // ── banda dorada en diagonal (el jugador la pisa)
     ctx.save(); ctx.shadowColor = "rgba(0,0,0,.6)"; ctx.shadowBlur = 40; ctx.shadowOffsetY = 12;
-    ctx.beginPath();
-    ctx.moveTo(0, bandY(0)); ctx.lineTo(W, bandY(W)); ctx.lineTo(W, bandY(W) + BAND.h); ctx.lineTo(0, bandY(0) + BAND.h); ctx.closePath();
+    ctx.beginPath(); ctx.moveTo(0, bandY(0)); ctx.lineTo(W, bandY(W)); ctx.lineTo(W, bandY(W) + BAND.h); ctx.lineTo(0, bandY(0) + BAND.h); ctx.closePath();
     ctx.fillStyle = GOLD; ctx.fill(); ctx.restore();
 
-    // ── jugador recortado, a color, con luz de contorno dorada y sombra de apoyo
+    // ── jugador recortado, colocado por su silueta sobre la banda
     if (ph && cut){
-      // colocado por su silueta: de pie sobre la banda, centrado y con la altura fija
       const img = grade(cut), b = bbox(cut), sc = 800 * (v.pSize ?? 100) / 100 / b.h;
       const cx = 560 + (v.pX ?? 0), x = cx - (b.x + b.w / 2) * sc, w = cut.width * sc, h = cut.height * sc;
-      // apoyo: el punto de apoyo más alto toca el borde de la banda; el otro (más cerca de cámara) queda sobre ella
       const feet = b.feet.length ? b.feet : [{ x: b.x + b.w / 2, y: b.y + b.h }];
-      const y = Math.max(...feet.map(p => bandY(x + p.x * sc) + 3 - p.y * sc)), foot = Math.max(...feet.map(p => y + p.y * sc));
+      const y = Math.max(...feet.map(p => bandY(x + p.x * sc) + 3 - p.y * sc));
       ctx.save(); ctx.globalAlpha = .5; ctx.fillStyle = BLACK; ctx.filter = "blur(8px)";
       feet.forEach(p => { ctx.beginPath(); ctx.ellipse(x + p.x * sc, y + p.y * sc - 3, 62, 9, 0, 0, Math.PI * 2); ctx.fill(); });
       ctx.restore();
@@ -223,33 +287,44 @@ export default {
     const tf = f(400, 118, ANTON), wF = width("FULL", tf, 2);
     slanted(ctx, "FULL", M, 168, tf, WHITE, "left", 2);
     slanted(ctx, "TIME", M + wF + 22, 168, tf, GOLD, "left", 2);
-    // firma centrada en la altura de las mayúsculas del título
-    if (I.firma){ const h = 66, w = I.firma.width * h / I.firma.height, capMid = 168 - 118 * .36; ctx.drawImage(I.firma, W - M - w, capMid - h / 2, w, h); }
+    // arriba a la derecha: logo de la competición y jornada (sin caja)
+    const capMid = 168 - 118 * .36, jf = f(400, 46, ANTON);
+    const logo = v.showComp && I.comp ? I.comp : null;
+    const lw = logo ? Math.min(124, logo.width * 96 / logo.height) : 0, lhh = logo ? lw * logo.height / logo.width : 0;
+    const jor = String(v.jornada || "").trim().toUpperCase(), jm = jor.match(/^(.*?)\s*(\d+)$/);
+    const jParts = jm && jm[1] ? [jm[1], jm[2]] : [jor, ""];
+    let rx = W - M;
+    if (logo){ ctx.drawImage(logo, rx - lw, capMid - lhh / 2, lw, lhh); rx -= lw + 26; }
+    if (logo && jor){ ctx.fillStyle = GOLD; ctx.fillRect(rx - 2, capMid - 38, 3, 76); rx -= 24; }
+    if (jor){
+      if (jParts[1]){
+        slanted(ctx, jParts[1], rx, capMid + 17, jf, GOLD, "right", 1);
+        slanted(ctx, jParts[0], rx - width(jParts[1], jf, 1) - 12, capMid + 17, jf, WHITE, "right", 1);
+      } else slanted(ctx, jParts[0], rx, capMid + 17, jf, WHITE, "right", 1);
+    }
 
-    // ── equipos: escudos grandes sobre los extremos de la banda, nombre y goleadores al lado
+    // ── equipos: escudos sobre los extremos de la banda, nombre y goleadores en la lámina
     const teams = [
       { n: String(v.nL || "").toUpperCase(), c: I.cL, list: scorers(v.sL), right: false },
       { n: String(v.nV || "").toUpperCase(), c: I.cV, list: scorers(v.sV), right: true }
     ];
     const CREST_AREA = 222 * 222, colX = 290;
     const rows = Math.max(1, ...teams.map(t => t.list.length));
-    const lh = Math.min(40, 150 / rows), spx = Math.round(lh * .86), sf = f(400, spx, ANTON), r = spx * .3, top = 1206;
-    ctx.fillStyle = "rgba(211,181,42,.6)"; ctx.fillRect(W / 2 - 1, 1112, 2, 214);
+    const lh = Math.min(34, 104 / Math.max(1, rows - 1)), spx = Math.round(Math.min(32, lh * .92)), sf = f(400, spx, ANTON), r = spx * .3, top = 1216;
+    ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(W / 2 - 1, 1140, 2, 128);
+    if (I.firma){ const h = 34, w = I.firma.width * h / I.firma.height; ctx.drawImage(I.firma, W / 2 - w / 2, 1286, w, h); }
     teams.forEach(t => {
       const al = t.right ? "right" : "left", dir = t.right ? -1 : 1, x = t.right ? W - colX : colX;
-      // escudo, sin marco, con sombra para despegarlo de la banda
       const cx = t.right ? W - 158 : 158, cy = bandY(cx) + BAND.h / 2 + 4;
       ctx.save(); ctx.shadowColor = "rgba(0,0,0,.75)"; ctx.shadowBlur = 34; ctx.shadowOffsetY = 10;
       crest(ctx, t.c, cx, cy, CREST_AREA, 262, 290); ctx.restore();
-      // nombre del equipo
       const px = fit(t.n, 220, 400, 46, 24, 1, ANTON);
-      slanted(ctx, t.n, x, 1150, f(400, px, ANTON), /FUTBOLGE/.test(t.n) ? GOLD : WHITE, al, 1);
-      // goleadores: nombre en Anton y un balón dorado por cada gol
+      slanted(ctx, t.n, x, 1174, f(400, px, ANTON), /FUTBOLGE/.test(t.n) ? GOLD : WHITE, al, 1);
       t.list.forEach((s, i) => {
-        const y = top + i * lh, nw = width(s.name, sf, 2), gap = r * 2 + 7;
-        text(s.name, x, y, sf, "rgba(255,255,255,.92)", al, 2);
+        const y = top + i * lh, nw = width(s.name, sf, 2), gp = r * 2 + 7;
+        text(s.name, x, y, sf, "rgba(255,255,255,.94)", al, 2);
         const bx0 = x + dir * (nw + 16 + r);
-        for (let k = 0; k < Math.min(s.n, 8); k++) ball(ctx, bx0 + dir * k * gap, y - spx * .36, r);
+        for (let k = 0; k < Math.min(s.n, 8); k++) ball(ctx, bx0 + dir * k * gp, y - spx * .36, r);
       });
     });
 
