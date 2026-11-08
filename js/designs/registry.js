@@ -14,10 +14,11 @@ import matchDayCine from "./match-day-cine.js";
 import matchDayCancion from "./match-day-cancion.js";
 import matchDayHalloween from "./match-day-halloween.js";
 import matchDayHalloweenMinimal from "./match-day-halloween-minimal.js";
+import matchDayZelda from "./match-day-zelda.js";
 import fullTime from "./full-time.js";
 import clasificacion from "./clasificacion.js";
 
-export const designs = [nextMatchPlayer, nextMatchPhoto, nextMatchEscudos, nextMatchDerbi, matchDayCine, matchDayHalloween, matchDayHalloweenMinimal, matchDayCancion, matchDay, matchDayFoto, fullTime, clasificacion];
+export const designs = [nextMatchPlayer, nextMatchPhoto, nextMatchEscudos, nextMatchDerbi, matchDayCine, matchDayHalloween, matchDayHalloweenMinimal, matchDayZelda, matchDayCancion, matchDay, matchDayFoto, fullTime, clasificacion];
 
 export const getDesign = id => designs.find(d => d.id === id);
 
