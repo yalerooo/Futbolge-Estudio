@@ -19,18 +19,18 @@ const COLS = [["J", 650], ["G", 704], ["E", 758], ["P", 812], ["GF", 866], ["GC"
 const PTS_X = 978, POS_X = 112, NAME_X = 164, NAME_W = 440;
 
 const DEFAULT = [
-  "ATLÉTICO CACAO 1 1 0 0 4 2 3",
-  "GUARANI GASTEIZ FC 1 1 0 0 5 3 3",
-  "JAIMITOS FC GLUP GOLOSINAS 1 1 0 0 2 1 3",
-  "DREAMTEAM F.C. 1 1 0 0 3 2 3",
-  "STREET KINGS 1 1 0 0 4 3 3",
-  "FUTBOLGE 1 0 1 0 3 3 1",
-  "LOH CHAVALE 1 0 1 0 3 3 1",
-  "PUERTO CHALACO F.C. 1 0 0 1 1 2 0",
-  "KISUNA SPORT CLUB 1 0 0 1 2 3 0",
-  "TXANTXI F.C. 1 0 0 1 3 4 0",
-  "SIN FRONTERAS FC 1 0 0 1 2 4 0",
-  "OPACUA ( LA CURVA DE SANSOMENDI) 1 0 0 1 3 5 0"
+  "ATLÉTICO CACAO 2 2 0 0 11 5 6",
+  "STREET KINGS 2 2 0 0 9 4 6",
+  "GUARANI GASTEIZ FC 2 2 0 0 11 6 6",
+  "JAIMITOS FC GLUP GOLOSINAS 2 2 0 0 6 2 6",
+  "DREAMTEAM F.C. 2 2 0 0 8 6 6",
+  "TXANTXI F.C. 2 1 0 1 8 6 3",
+  "LOH CHAVALE 2 0 1 1 7 8 1",
+  "FUTBOLGE 2 0 1 1 6 10 1",
+  "PUERTO CHALACO F.C. 2 0 0 2 3 7 0",
+  "KISUNA SPORT CLUB 2 0 0 2 5 9 0",
+  "OPACUA ( LA CURVA DE SANSOMENDI) 2 0 0 2 4 9 0",
+  "SIN FRONTERAS FC 2 0 0 2 3 9 0"
 ];
 
 /* «Nombre J G E P GF GC Pts» → objeto. Si vienen 8 números (con la columna S de sanciones), se ignora la S. */
@@ -103,7 +103,7 @@ export default {
       { type: "text", id: "title", label: "Título", value: "Clasificación" },
       { type: "row", fields: [
         { type: "text", id: "comp", label: "Competición", value: "Preferente" },
-        { type: "text", id: "jornada", label: "Jornada", value: "Jornada 1" }
+        { type: "text", id: "jornada", label: "Jornada", value: "Jornada 2" }
       ]}
     ]},
     { type: "section", title: "Tabla", fields: [
