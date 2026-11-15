@@ -17,9 +17,10 @@ import matchDayHalloween from "./match-day-halloween.js";
 import matchDayHalloweenMinimal from "./match-day-halloween-minimal.js";
 import matchDayZelda from "./match-day-zelda.js";
 import fullTime from "./full-time.js";
+import fullTimeGoleadores from "./full-time-goleadores.js";
 import clasificacion from "./clasificacion.js";
 
-export const designs = [nextMatchPlayer, nextMatchPhoto, nextMatchEscudos, nextMatchDerbi, matchDayGlass, matchDayCine, matchDayHalloween, matchDayHalloweenMinimal, matchDayZelda, matchDayCancion, matchDay, matchDayFoto, fullTime, clasificacion];
+export const designs = [nextMatchPlayer, nextMatchPhoto, nextMatchEscudos, nextMatchDerbi, matchDayGlass, matchDayCine, matchDayHalloween, matchDayHalloweenMinimal, matchDayZelda, matchDayCancion, matchDay, matchDayFoto, fullTime, fullTimeGoleadores, clasificacion];
 
 export const getDesign = id => designs.find(d => d.id === id);
 
