@@ -203,13 +203,14 @@ export default {
   assets: { firma: "assets/img/firma_futbolge.png", photo_cut: "assets/fotos/jugador_resultado_recorte.png" },
 
   fields: [
+    { type: "segmented", id: "equipos", value: "escudos", options: [{ value: "escudos", label: "Con escudos" }, { value: "nombres", label: "Sin escudos" }] },
     { type: "section", title: "Local", fields: [
       { type: "row", fields: [
         { type: "text", id: "nL", label: "Nombre", value: "Futbolge" },
         { type: "number", id: "gL", label: "Goles", value: 3, min: 0, max: 99, narrow: true }
       ]},
       { type: "text", id: "sL", label: "Goleadores", value: "Oier, Alex, Oribe" },
-      { type: "image", id: "cL", label: "Escudo (blanco y negro)", src: "assets/img/escudo_futbolge_bn_hd.png" }
+      { type: "image", id: "cL", label: "Escudo (blanco y negro)", src: "assets/img/escudo_futbolge_bn_hd.png", visibleIf: v => v.equipos !== "nombres" }
     ]},
     { type: "section", title: "Visitante", fields: [
       { type: "row", fields: [
@@ -217,7 +218,7 @@ export default {
         { type: "number", id: "gV", label: "Goles", value: 7, min: 0, max: 99, narrow: true }
       ]},
       { type: "text", id: "sV", label: "Goleadores", value: "Iago x4, Joan, Álvaro, Edwin" },
-      { type: "image", id: "cV", label: "Escudo (blanco y negro)", src: "assets/img/escudo_atletico_cacao_bn_hd.png" }
+      { type: "image", id: "cV", label: "Escudo (blanco y negro)", src: "assets/img/escudo_atletico_cacao_bn_hd.png", visibleIf: v => v.equipos !== "nombres" }
     ]},
     { type: "hint", text: "Goleadores separados por comas. Para varios goles del mismo: «Iago x4»." },
     { type: "section", title: "Competición", fields: [
@@ -308,7 +309,9 @@ export default {
       { n: String(v.nL || "").toUpperCase(), c: I.cL, list: scorers(v.sL), right: false },
       { n: String(v.nV || "").toUpperCase(), c: I.cV, list: scorers(v.sV), right: true }
     ];
-    const CREST_AREA = 222 * 222, colX = 290;
+    // sin escudos, nombres y goleadores se abren hacia los márgenes y el nombre gana tamaño
+    const crests = v.equipos !== "nombres";
+    const CREST_AREA = 222 * 222, colX = crests ? 290 : M + 34, nameW = crests ? 220 : 380, namePx = crests ? 46 : 58;
     const rows = Math.max(1, ...teams.map(t => t.list.length));
     const lh = Math.min(34, 104 / Math.max(1, rows - 1)), spx = Math.round(Math.min(32, lh * .92)), sf = f(400, spx, ANTON), r = spx * .3, top = 1216;
     ctx.fillStyle = "rgba(255,255,255,.28)"; ctx.fillRect(W / 2 - 1, 1140, 2, 128);
@@ -316,9 +319,11 @@ export default {
     teams.forEach(t => {
       const al = t.right ? "right" : "left", dir = t.right ? -1 : 1, x = t.right ? W - colX : colX;
       const cx = t.right ? W - 158 : 158, cy = bandY(cx) + BAND.h / 2 + 4;
-      ctx.save(); ctx.shadowColor = "rgba(0,0,0,.75)"; ctx.shadowBlur = 34; ctx.shadowOffsetY = 10;
-      crest(ctx, t.c, cx, cy, CREST_AREA, 262, 290); ctx.restore();
-      const px = fit(t.n, 220, 400, 46, 24, 1, ANTON);
+      if (crests){
+        ctx.save(); ctx.shadowColor = "rgba(0,0,0,.75)"; ctx.shadowBlur = 34; ctx.shadowOffsetY = 10;
+        crest(ctx, t.c, cx, cy, CREST_AREA, 262, 290); ctx.restore();
+      }
+      const px = fit(t.n, nameW, 400, namePx, 24, 1, ANTON);
       slanted(ctx, t.n, x, 1174, f(400, px, ANTON), /FUTBOLGE/.test(t.n) ? GOLD : WHITE, al, 1);
       t.list.forEach((s, i) => {
         const y = top + i * lh, nw = width(s.name, sf, 2), gp = r * 2 + 7;
